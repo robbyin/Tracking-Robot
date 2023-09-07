@@ -79,7 +79,7 @@ def run(
         vid_stride=1,  # video frame-rate stride
         retina_masks=False,
 ):
-
+    global object_coordinates = []
     source = str(source)
     save_img = not nosave and not source.endswith('.txt')  # save inference images
     is_file = Path(source).suffix[1:] in (VID_FORMATS)
@@ -246,14 +246,32 @@ def run(
                         conf = output[6]
 
                         depth_frame = dataset.get_depth()
-                        #get centeroid
-                        center_x = (bbox[0] + bbox[2]) / 2
-                        center_y = (bbox[1] + bbox[3]) / 2
-                        centeroid.append(int(center_x))
-                        centeroid.append(int(center_y))
-                        # print(depth_frame[centeroid[0]:centeroid[1]])
-                        coor_z =int(depth_frame.get_distance(centeroid[0], centeroid[1]) * 1000)
+                        intr = dataset.get_intr()
+                        if (cls == 0 and id ==1):
+                            #get centeroid
+                            center_x = (bbox[0] + bbox[2]) / 2
+                            center_y = (bbox[1] + bbox[3]) / 2
+                            centeroid.append(int(center_x))
+                            centeroid.append(int(center_y))
+                            
+                            #get Depth
+                            depth_obj = int(depth_frame.get_distance(centeroid[0], centeroid[1]) * 1000)
 
+                            # Calculate real-world coordinates
+                            coor_x = (depth_obj * (center_x - intr.ppx) / intr.fx) - 35 # 35 is RGB camera module offset from the center of the RealSense
+                            coor_y = depth_obj * (center_y - intr.ppy) / intr.fy
+                            coor_z = depth_obj
+
+                            #Transform camera angle
+                            # Xtarget = Xtemp - 35  
+                            # Ytarget = -(Ztemp * math.sin(theta) + Ytemp * math.cos(theta))
+                            # Ztarget = Ztemp * math.cos(theta) + Ytemp * math.sin(theta)
+
+                            coordinate_text = "(" + str(round(coor_x)) + "," + str(round(coor_y)) + "," + str(round(coor_z)) + ")"
+                            print(coordinate_text)
+                            cv2.putText(im0, text=coordinate_text, org=(center_x, center_y), fontFace = cv2.FONT_HERSHEY_SIMPLEX, fontScale = 0.7, color=(255,255,255), thickness=1, lineType = cv2.LINE_AA)
+
+                        
                         if save_txt:
                             # Write MOT compliant results to file
                             with open(txt_path + '.txt', 'a') as f:
@@ -287,7 +305,7 @@ def run(
                     windows.append(p)
                     cv2.namedWindow(str(p), cv2.WINDOW_NORMAL | cv2.WINDOW_KEEPRATIO)  # allow window resize (Linux)
                     cv2.resizeWindow(str(p), im0.shape[1], im0.shape[0])
-                cv2.circle(im0, (centeroid[0],centeroid[1]), 5, (0,255,0), -1)
+                #cv2.circle(im0, (centeroid[0],centeroid[1]), 5, (0,255,0), -1)
                 cv2.imshow(str(p), im0)
                 if cv2.waitKey(1) == ord('q'):  # 1 millisecond
                     exit()
@@ -322,6 +340,8 @@ def run(
     if update:
         strip_optimizer(yolo_weights)  # update model (to fix SourceChangeWarning)
 
+def follow_person():
+
 
 def parse_opt():
     parser = argparse.ArgumentParser()
@@ -333,7 +353,7 @@ def parse_opt():
     parser.add_argument('--imgsz', '--img', '--img-size', nargs='+', type=int, default=[640], help='inference size h,w')
     parser.add_argument('--conf-thres', type=float, default=0.5, help='confidence threshold')
     parser.add_argument('--iou-thres', type=float, default=0.5, help='NMS IoU threshold')
-    parser.add_argument('--max-det', type=int, default=1, help='maximum detections per image')
+    parser.add_argument('--max-det', type=int, default=5, help='maximum detections per image')
     parser.add_argument('--device', default='0', help='cuda device, i.e. 0 or 0,1,2,3 or cpu')
     parser.add_argument('--show-vid', action='store_true', help='display tracking video results')
     parser.add_argument('--save-txt', action='store_true', help='save results to *.txt')

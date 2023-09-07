@@ -34,6 +34,7 @@ class LoadStreams:
         self.sources = [ops.clean_str(x) for x in sources]  # clean source names for later
         self.imgs, self.fps, self.frames, self.threads = [None] * n, [0] * n, [0] * n, [None] * n
         self.depth_frame=None
+        self.intr=None
         for i, s in enumerate(sources):  # index, source
             # Start thread to read frames from video stream
             st = f'{i + 1}/{n}: {s}... '
@@ -58,7 +59,7 @@ class LoadStreams:
                 profile = pipeline.start(config)
 
                 # Capture camera intrinsics
-                intr = profile.get_stream(rs.stream.color).as_video_stream_profile().get_intrinsics()
+                self.intr = profile.get_stream(rs.stream.color).as_video_stream_profile().get_intrinsics()
                 LOGGER.info(f"Camera Intrinsics: fx={intr.fx}, fy={intr.fy}, ppx={intr.ppx}, ppy={intr.ppy}")
                 
                 align_to = rs.stream.color
@@ -173,6 +174,9 @@ class LoadStreams:
 
     def get_depth(self):
         return self.depth_frame
+    
+    def get_intr(self):
+        return self.intr
 
 class LoadScreenshots:
     # YOLOv8 screenshot dataloader, i.e. `python detect.py --source "screen 0 100 100 512 256"`
